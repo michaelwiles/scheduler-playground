@@ -22,12 +22,23 @@ public class TableBoolVars {
 
 
     private final int[] dayRange;
+
+
     private final Multimap<Integer, Literal> dayMap = ArrayListMultimap.create();
     private final Multimap<Integer, Literal> internsMap = ArrayListMultimap.create();
     private final Multimap<Pair<Integer, Shift>, Literal> dayShiftMap = ArrayListMultimap.create();
     // Pair<InternId, Day> -> IntVar
     private final Multimap<Pair<Integer, Integer>, Literal> internDayMap = ArrayListMultimap.create();
     private final int days;
+    private final int numberOfShifts;
+
+    public int getDays() {
+        return this.days;
+    }
+
+    public int getNumberOfShifts() {
+        return this.numberOfShifts;
+    }
 
 
     public enum Shift {
@@ -45,17 +56,27 @@ public class TableBoolVars {
 //
 //        shifts[n][d][s] = model.newIntVar(0L, 1L, "shifts_n" + n + "d" + d + "s" + s);
 
-        for (int i : internsRange) {
-            for (int d : dayRange) {
-                for (Shift s : Shift.values()) {
+        int shifts = 0;
+        for (int d : dayRange) {
+            Shift[] shiftTypes;
+            if (isWeekEndOrPublicHoliday.negate().test(d)) {
+                shiftTypes = new Shift[]{Shift.WEEK_DAY};
+            } else {
+                shiftTypes = new Shift[]{Shift.WEEKEND, Shift.WEEKEND_SHORTCALL};
+            }
+            for (Shift s : shiftTypes) {
+                shifts++;
+                for (int i : internsRange) {
                     BoolVar intVar = model.newBoolVar("day=" + d + " " + this.interns.get(i) + " shift=" + s);
                     dayMap.put(d, intVar);
                     dayShiftMap.put(Pair.of(d, s), intVar);
                     internsMap.put(i, intVar);
                     internDayMap.put(Pair.of(i, d), intVar);
+
                 }
             }
         }
+        this.numberOfShifts = shifts;
     }
 
     public IntStream getWeekDays() {
@@ -73,11 +94,11 @@ public class TableBoolVars {
 
     /**
      * Get all Cells for a specific day (all interns and all shifts)
-     *
      */
     public Literal[] getDay(int i) {
         return this.dayMap.get(i).toArray(new Literal[0]);
     }
+
 
     public Collection<Literal> getInterns(int internIndex) {
         return internsMap.get(internIndex);
@@ -104,6 +125,11 @@ public class TableBoolVars {
     public CpModel getModel() {
         return model;
     }
+
+    public Multimap<Integer, Literal> getDayMap() {
+        return dayMap;
+    }
+
 
 
 }

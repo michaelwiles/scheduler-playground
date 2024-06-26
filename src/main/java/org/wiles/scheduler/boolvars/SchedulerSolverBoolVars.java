@@ -3,6 +3,7 @@ package org.wiles.scheduler.boolvars;
 import com.google.ortools.Loader;
 import com.google.ortools.sat.*;
 
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
 import java.util.stream.IntStream;
@@ -23,22 +24,22 @@ public class SchedulerSolverBoolVars {
     public CpSolverStatus solve(CpSolverSolutionCallback onSolutionCallback) {
 
 
-        //setup week days
-        table.getWeekDays().forEach(day -> {
-            // exactly one intern on call on week days
-            table.getModel().addEquality(LinearExpr.sum(table.getDay(day, TableBoolVars.Shift.WEEK_DAY)), 1);
-            // no interns on week end or short calls on week days
-            table.getModel().addEquality(LinearExpr.sum(table.getDay(day, TableBoolVars.Shift.WEEKEND_SHORTCALL, TableBoolVars.Shift.WEEKEND)), 0);
-        });
-
-        table.getWeekEndDays().forEach(day -> {
-            // weekend shortcall + weekend call = 2 (short call and weekend calls covered)
-            table.getModel().addEquality(LinearExpr.sum(table.getDay(day, TableBoolVars.Shift.WEEKEND_SHORTCALL, TableBoolVars.Shift.WEEKEND)), 2);
-            table.getModel().addEquality(LinearExpr.sum(table.getDay(day, TableBoolVars.Shift.WEEK_DAY)), 0);
-        });
+        //
 
         // at most one shift per day per intern
-        table.getInternDayMap().asMap().values().stream().map(x -> x.toArray(new Literal[0])).forEach(internDay -> table.getModel().addLessOrEqual(LinearExpr.sum(internDay), 1));
+        table.getWeekDays().mapToObj(x -> table.getDay(x, TableBoolVars.Shift.WEEK_DAY)).forEach(set -> table.getModel().addExactlyOne(set));
+        table.getWeekEndDays().mapToObj(x -> table.getDay(x, TableBoolVars.Shift.WEEKEND)).forEach(set -> table.getModel().addExactlyOne(set));
+        table.getWeekEndDays().mapToObj(x -> table.getDay(x, TableBoolVars.Shift.WEEKEND_SHORTCALL)).forEach(set -> table.getModel().addExactlyOne(set));
+
+
+        // make sure that onle one intern is on call for one day (and not on call twice on the same day)
+        IntStream.range(0, table.getInterns().size()).forEach(internIndex -> {
+            Arrays.stream(table.getDayRange()).mapToObj(weekendDay ->
+                    table.getInterns(internIndex, weekendDay)
+            ).forEach(elements -> table.getModel().addAtMostOne(elements));
+        });
+
+
 
 //        addGaps(table);
         distributeShifts(table);
@@ -84,9 +85,9 @@ public class SchedulerSolverBoolVars {
         // minShiftsPerNurse shifts. If this is not possible, because the total
         // number of shifts is not divisible by the number of nurses, some nurses will
         // be assigned one more shift.
-        int minShiftsPerNurse = 9 / table.getInterns().size();
+        int minShiftsPerNurse = table.getNumberOfShifts() / table.getInterns().size();
         int maxShiftsPerNurse;
-        if (9 % table.getInterns().size() == 0) {
+        if (table.getNumberOfShifts() % table.getInterns().size() == 0) {
             maxShiftsPerNurse = minShiftsPerNurse;
         } else {
             maxShiftsPerNurse = minShiftsPerNurse + 1;

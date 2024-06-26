@@ -66,7 +66,7 @@ public class InternsTest {
 
         var table = new TableBoolVars(Stream.generate(() ->
                 faker.name().lastName()
-        ).limit(numInterns).collect(Collectors.toList()), numDays, isWeekEndOfPublicHoliday);
+        ).limit(7).collect(Collectors.toList()), 31, isWeekEndOfPublicHoliday);
 
         SchedulerSolverBoolVars schedulerSolverIntVars = new SchedulerSolverBoolVars(table);
 
