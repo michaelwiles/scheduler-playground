@@ -5,7 +5,6 @@ import static org.assertj.core.api.Assertions.*;
 import com.google.ortools.Loader;
 import net.datafaker.Faker;
 import org.junit.jupiter.api.Test;
-import org.wiles.scheduler.boolvars.Table;
 
 import java.util.Calendar;
 import java.util.function.Function;

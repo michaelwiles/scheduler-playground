@@ -1,4 +1,4 @@
-package org.wiles.scheduler.boolvars;
+package org.wiles.scheduler;
 
 import com.google.common.collect.Multimap;
 import com.google.ortools.Loader;
@@ -55,51 +55,17 @@ public class SchedulerSolver {
         addRequests();
         solver.getParameters().setLinearizationLevel(0);
 
-        // Tell the solver to enumerate all solutions.
-//        solver.getParameters().setEnumerateAllSolutions(true);
-
-
         return solver;
-
-
     }
-
-/*    private void addRequests(CpSolver solver) {
-        BoolVar[][] isOff = new BoolVar[table.allInterns.length][table.days];  // Auxiliary variable representing if nurse 'n' is off on day 'd'
-
-        LinearExprBuilder objectiveExpressionBuilder = LinearExpr.newBuilder();
-        for (int i : table.allInterns) {
-            for (int d : table.allDays) {
-                LinearExprBuilder shiftSum = LinearExpr.newBuilder();
-                for (int s : table.allShifts) {
-                    var shift = table.shifts[i][d][s];
-                    if (shift != null) {
-                        shiftSum.add(table.shifts[i][d][s]);
-                    }
-                }
-
-                Constraint constraint = table.getModel().addEquality(shiftSum, isOff[i][d]);
-
-                // Assume offRequests[n][d] is the `reward` for nurse n being off on day d
-                table.getModel().addObjectiveTerm(offRequests[n][d], isOff[n][d]);
-                //IntVar shiftSum = LinearExpr.sum(table.allShifts.stream().map(s -> table.shifts[i][d][s]).collect(Collectors.toList())).toVar();
-                // isOff[n][d] is 1 if nurse 'n' is off on day 'd', 0 otherwise
-                isOff[i][d] = table.getModel().newBoolVar(String.format("isOff[%s][%s]", i, d));
-                // isOff[n][d] is 1 if nurse 'n' is off on day 'd', 0 otherwise
-
-            }
-        }
-        model.maximize(objectiveExpressionBuilder.build());
-    }*/
 
     /**
      * adds the requests to the model
      */
     private void addRequests() {
-
-
         var model = table.getModel();
         LinearExprBuilder obj = LinearExpr.newBuilder();
+        table.maxRequests = model.newIntVar(0, Integer.MAX_VALUE, "max requests");
+
         for (int i : table.allInterns) {
             for (int d : table.allDays) {
                 LinearExprBuilder dailyShiftExpr = LinearExpr.newBuilder();
@@ -109,17 +75,15 @@ public class SchedulerSolver {
                         dailyShiftExpr.addTerm(shift, 1);
                     }
                 }
-                BoolVar off = model.newBoolVar(String.format("isOff[%s][%s]", table.getInterns().get(i), d));
-                table.isOff[i][d] = off;
-                table.isOffList.add(off);
                 LinearExpr inversionExpression = LinearExpr.sum(new LinearArgument[]{LinearExpr.constant(1), LinearExpr.newBuilder().addTerm(dailyShiftExpr, -1)});
-                table.getModel().addEquality(off, inversionExpression);
                 if (table.getRequestMap().containsEntry(i, d)) {
                     System.out.printf("\nadding off request for iId: %s:%s and day: %d", i, table.getInterns().get(i), d);
                     obj.add(inversionExpression);
                 }
             }
         }
+
+        model.addEquality(table.maxRequests, obj);
         table.getModel().maximize(obj);
     }
 

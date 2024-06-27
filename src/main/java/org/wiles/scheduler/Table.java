@@ -1,10 +1,11 @@
-package org.wiles.scheduler.boolvars;
+package org.wiles.scheduler;
 
 import com.google.common.collect.ArrayListMultimap;
 import com.google.common.collect.Multimap;
 import com.google.common.primitives.Ints;
 import com.google.ortools.sat.BoolVar;
 import com.google.ortools.sat.CpModel;
+import com.google.ortools.sat.IntVar;
 import com.google.ortools.sat.Literal;
 import org.apache.commons.lang3.tuple.Pair;
 
@@ -37,8 +38,7 @@ public class Table {
     final int[] allInterns;// = IntStream.range(0, numNurses).toArray();
     final int[] allDays;// = IntStream.range(0, numDays).toArray();
     final int[] allShifts;// = IntStream.range(0, numShifts).toArray();
-    final BoolVar[][] isOff;
-    public final List<Literal> isOffList = new ArrayList<>();
+    public IntVar maxRequests;
 
 
     public int getNumberOfShifts() {
@@ -65,7 +65,6 @@ public class Table {
         allDays = IntStream.range(0, days).toArray();
         allShifts = IntStream.range(0, Shift.values().length).toArray();
 
-        this.isOff = new BoolVar[allInterns.length][allDays.length];  // Auxiliary variable representing if nurse 'n' is off on day 'd';
 
         int shifts = 0;
         this.shifts = new Literal[interns.size()][days][Shift.values().length];

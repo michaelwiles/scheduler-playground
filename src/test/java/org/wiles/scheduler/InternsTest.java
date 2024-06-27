@@ -4,8 +4,6 @@ import com.google.ortools.Loader;
 import com.google.ortools.sat.*;
 import net.datafaker.Faker;
 import org.junit.jupiter.api.Test;
-import org.wiles.scheduler.boolvars.SchedulerSolver;
-import org.wiles.scheduler.boolvars.Table;
 import org.wiles.scheduler.intvars.SchedulerSolverIntVars;
 import org.wiles.scheduler.intvars.TableIntVars;
 
@@ -64,7 +62,27 @@ public class InternsTest {
     };
 
     @Test
-    public void scheduleWithRequests() {
+    public void scheduleWithRequestsNotAllRequestsMetAsItIsNotPossible() {
+        var table = new Table(Stream.generate(() ->
+                faker.name().lastName()
+        ).limit(4).collect(Collectors.toList()), 7, isWeekEndOfPublicHoliday);
+        int[] ints = {0, 1, 2, 3, 4};
+        table.addRequests(0, ints);
+        SchedulerSolver schedulerSolver = new SchedulerSolver(table);
+
+        checkSolution(table, schedulerSolver, getValue -> {
+            System.out.println("max requests = " + getValue.apply(table.maxRequests));
+            assertThat(getValue.apply(table.maxRequests)).isEqualTo(4);
+            /*Arrays.stream(ints).forEach(day -> {
+                Stream<Long> actual = table.getInterns(0, day).stream().map(getValue);
+                assertThat(actual).allMatch(x -> x == 0);
+            });*/
+
+        });
+    }
+
+    @Test
+    public void scheduleWithRequestsAllRequestsMet() {
         var table = new Table(Stream.generate(() ->
                 faker.name().lastName()
         ).limit(4).collect(Collectors.toList()), 8, isWeekEndOfPublicHoliday);
@@ -72,11 +90,15 @@ public class InternsTest {
         table.addRequests(0, ints);
         SchedulerSolver schedulerSolver = new SchedulerSolver(table);
 
-        checkSolution(table, schedulerSolver, getValue ->
-                Arrays.stream(ints).forEach(day -> {
-                    Stream<Long> actual = table.getInterns(0, day).stream().map(getValue);
-                    assertThat(actual).allMatch(x -> x == 0);
-                }));
+        checkSolution(table, schedulerSolver, getValue -> {
+            System.out.println("max requests = " + getValue.apply(table.maxRequests));
+            assertThat(getValue.apply(table.maxRequests)).isEqualTo(5);
+            Arrays.stream(ints).forEach(day -> {
+                Stream<Long> actual = table.getInterns(0, day).stream().map(getValue);
+                assertThat(actual).allMatch(x -> x == 0);
+            });
+
+        });
     }
 
     @Test
@@ -109,7 +131,7 @@ public class InternsTest {
 
         Arrays.stream(table.getDayRange()).mapToObj(table::getDay).forEach(day -> Arrays.stream(day).filter(a -> solver.value(a) == 1).map(BoolVar.class::cast).forEach(x -> System.out.println(x.getName())));
 
-        table.isOffList.forEach(x -> System.out.println(((BoolVar) x).getName() + ":" + solver.value(x)));
+//        table.isOffList.forEach(x -> System.out.println(((BoolVar) x).getName() + ":" + solver.value(x)));
         validate.accept(solver::value);
     }
 
