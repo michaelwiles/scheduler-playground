@@ -21,9 +21,11 @@ public class SchedulerSolver {
 
     public SchedulerSolver(Table table) {
         this.table = table;
+
     }
 
-    public CpSolverStatus solve(CpSolverSolutionCallback onSolutionCallback) {
+
+    public CpSolver solve() {
 
 
         //
@@ -48,93 +50,107 @@ public class SchedulerSolver {
         prohibitConsecutiveShifts();
 
         addLeave();
-        addRequests();
 
         CpSolver solver = new CpSolver();
+        addRequests();
         solver.getParameters().setLinearizationLevel(0);
+
         // Tell the solver to enumerate all solutions.
 //        solver.getParameters().setEnumerateAllSolutions(true);
 
 
-        return solver.solve(table.getModel(), onSolutionCallback);
+        return solver;
 
 
     }
+
+/*    private void addRequests(CpSolver solver) {
+        BoolVar[][] isOff = new BoolVar[table.allInterns.length][table.days];  // Auxiliary variable representing if nurse 'n' is off on day 'd'
+
+        LinearExprBuilder objectiveExpressionBuilder = LinearExpr.newBuilder();
+        for (int i : table.allInterns) {
+            for (int d : table.allDays) {
+                LinearExprBuilder shiftSum = LinearExpr.newBuilder();
+                for (int s : table.allShifts) {
+                    var shift = table.shifts[i][d][s];
+                    if (shift != null) {
+                        shiftSum.add(table.shifts[i][d][s]);
+                    }
+                }
+
+                Constraint constraint = table.getModel().addEquality(shiftSum, isOff[i][d]);
+
+                // Assume offRequests[n][d] is the `reward` for nurse n being off on day d
+                table.getModel().addObjectiveTerm(offRequests[n][d], isOff[n][d]);
+                //IntVar shiftSum = LinearExpr.sum(table.allShifts.stream().map(s -> table.shifts[i][d][s]).collect(Collectors.toList())).toVar();
+                // isOff[n][d] is 1 if nurse 'n' is off on day 'd', 0 otherwise
+                isOff[i][d] = table.getModel().newBoolVar(String.format("isOff[%s][%s]", i, d));
+                // isOff[n][d] is 1 if nurse 'n' is off on day 'd', 0 otherwise
+
+            }
+        }
+        model.maximize(objectiveExpressionBuilder.build());
+    }*/
 
     /**
      * adds the requests to the model
      */
     private void addRequests() {
 
+
+        var model = table.getModel();
         LinearExprBuilder obj = LinearExpr.newBuilder();
         for (int i : table.allInterns) {
             for (int d : table.allDays) {
+                LinearExprBuilder dailyShiftExpr = LinearExpr.newBuilder();
                 for (int s : table.allShifts) {
-                    Literal shift = table.table[i][d][s];
+                    Literal shift = table.shifts[i][d][s];
                     if (shift != null) {
-                        if (table.getRequestMap().get(i).contains(d)) {
-                            System.out.printf("\nadded request to be OFF for %s on days %s", i, shift);
-                            obj.addTerm(shift.not(), 1);
-                        } else {
-                            System.out.printf("\nadded request to be ON for %s on days %s", i, shift);
-                            obj.addTerm(shift, 0);
-                        }
+                        dailyShiftExpr.addTerm(shift, 1);
                     }
+                }
+                BoolVar off = model.newBoolVar(String.format("isOff[%s][%s]", table.getInterns().get(i), d));
+                table.isOff[i][d] = off;
+                table.isOffList.add(off);
+                LinearExpr inversionExpression = LinearExpr.sum(new LinearArgument[]{LinearExpr.constant(1), LinearExpr.newBuilder().addTerm(dailyShiftExpr, -1)});
+                table.getModel().addEquality(off, inversionExpression);
+                if (table.getRequestMap().containsEntry(i, d)) {
+                    System.out.printf("\nadding off request for iId: %s:%s and day: %d", i, table.getInterns().get(i), d);
+                    obj.add(off);
                 }
             }
         }
-        System.out.println(obj);
         table.getModel().maximize(obj);
-    }
-
-    private void addRequests0() {
-        Multimap<Integer, Integer> leaveMap = table.getRequestMap();
-        LinearExprBuilder builder = LinearExpr.newBuilder();
-
-        leaveMap.asMap().forEach((internIdx, days) -> {
-            days.stream().map(day -> table.getInterns(internIdx, day)).
-                    forEach(shifts -> {
-                        shifts.forEach(shift -> {
-                            builder.addTerm(shift.not(), 1);
-                        });
-                        System.out.printf("\nadded request to be off for %s on days %s", table.getInterns().get(internIdx), shifts);
-                    });
-        });
-        table.getModel().maximize(builder);
     }
 
     private void addLeave() {
         Multimap<Integer, Integer> leaveMap = table.getLeaveMap();
-        leaveMap.asMap().forEach((internIdx, days) -> {
-            days.stream().map(day -> table.getInterns(internIdx, day)).
-                    forEach(shifts -> {
-                        LinearExprBuilder builder = LinearExpr.newBuilder();
-                        builder.addSum(shifts.toArray(new Literal[0]));
-                        System.out.printf("\nadded leave for %s on days %s", table.getInterns().get(internIdx), shifts);
-                        table.getModel().addEquality(builder, 0);
-                    });
-        });
+        leaveMap.asMap().forEach((internIdx, days) -> days.stream().map(day -> table.getInterns(internIdx, day)).
+                forEach(shifts -> {
+                    LinearExprBuilder builder = LinearExpr.newBuilder();
+                    builder.addSum(shifts.toArray(new Literal[0]));
+                    System.out.printf("\nadded leave for %s on days %s", table.getInterns().get(internIdx), shifts);
+                    table.getModel().addEquality(builder, 0);
+                }));
     }
 
     private void prohibitConsecutiveShifts() {
-        range(0, table.getDayRange().length - 1).forEach(day -> {
-            range(0, table.getInterns().size()).forEach(internIndex -> {
-                Collection<Literal> interns = table.getInterns(internIndex, day);
+        range(0, table.getDayRange().length - 1).forEach(day ->
+                range(0, table.getInterns().size()).forEach(internIndex -> {
+                    Collection<Literal> interns = table.getInterns(internIndex, day);
 
-                interns.forEach(todayShift -> {
-                    table.getInterns(internIndex, day + 1).forEach(tomorrowShift -> {
+                    interns.forEach(todayShift -> {
+                        table.getInterns(internIndex, day + 1).forEach(tomorrowShift ->
+                                table.getModel().addImplication(todayShift, tomorrowShift.not()));
+                /*if (day < table.getDayRange().length - 2) {
+                    table.getInterns(internIndex, day + 2).forEach(tomorrowShift -> {
                         table.getModel().addImplication(todayShift, tomorrowShift.not());
                     });
-                    /*if (day < table.getDayRange().length - 2) {
-                        table.getInterns(internIndex, day + 2).forEach(tomorrowShift -> {
-                            table.getModel().addImplication(todayShift, tomorrowShift.not());
-                        });
-                    }*/
+                }*/
 
-                });
+                    });
 
-            });
-        });
+                }));
     }
 
 

@@ -8,9 +8,7 @@ import com.google.ortools.sat.CpModel;
 import com.google.ortools.sat.Literal;
 import org.apache.commons.lang3.tuple.Pair;
 
-import java.util.Arrays;
-import java.util.Collection;
-import java.util.List;
+import java.util.*;
 import java.util.function.IntPredicate;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
@@ -25,20 +23,22 @@ public class Table {
     private final int[] dayRange;
 
 
-    public final Literal[][][] table;
+    final Literal[][][] shifts;
     private final Multimap<Integer, Literal> dayMap = ArrayListMultimap.create();
     private final Multimap<Integer, Literal> internsMap = ArrayListMultimap.create();
     private final Multimap<Pair<Integer, Shift>, Literal> dayShiftMap = ArrayListMultimap.create();
     // Pair<InternId, Day> -> IntVar
     private final Multimap<Pair<Integer, Integer>, Literal> internDayMap = ArrayListMultimap.create();
-    private final int days;
+    final int days;
     private final int numberOfShifts;
     private final Multimap<Integer, Integer> leaveMap = ArrayListMultimap.create();
     private final Multimap<Integer, Integer> requestMap = ArrayListMultimap.create();
 
-    public final int[] allInterns;// = IntStream.range(0, numNurses).toArray();
-    public final int[] allDays;// = IntStream.range(0, numDays).toArray();
-    public final int[] allShifts;// = IntStream.range(0, numShifts).toArray();
+    final int[] allInterns;// = IntStream.range(0, numNurses).toArray();
+    final int[] allDays;// = IntStream.range(0, numDays).toArray();
+    final int[] allShifts;// = IntStream.range(0, numShifts).toArray();
+    final BoolVar[][] isOff;
+    public final List<Literal> isOffList = new ArrayList<>();
 
 
     public int getNumberOfShifts() {
@@ -57,6 +57,7 @@ public class Table {
         int[] internsRange = IntStream.range(0, this.interns.size()).toArray();
         this.dayRange = IntStream.range(0, days).toArray();
         this.days = days;
+
 //
 //
 //        shifts[n][d][s] = model.newIntVar(0L, 1L, "shifts_n" + n + "d" + d + "s" + s);
@@ -64,8 +65,10 @@ public class Table {
         allDays = IntStream.range(0, days).toArray();
         allShifts = IntStream.range(0, Shift.values().length).toArray();
 
+        this.isOff = new BoolVar[allInterns.length][allDays.length];  // Auxiliary variable representing if nurse 'n' is off on day 'd';
+
         int shifts = 0;
-        table = new Literal[interns.size()][days][Shift.values().length];
+        this.shifts = new Literal[interns.size()][days][Shift.values().length];
         for (int d : dayRange) {
             Shift[] shiftTypes;
             if (isWeekEndOrPublicHoliday.negate().test(d)) {
@@ -83,7 +86,7 @@ public class Table {
                     dayShiftMap.put(Pair.of(d, s), var);
                     internsMap.put(i, var);
                     internDayMap.put(Pair.of(i, d), var);
-                    table[i][d][s.ordinal()] = var;
+                    this.shifts[i][d][s.ordinal()] = var;
                 }
             }
         }
@@ -148,6 +151,5 @@ public class Table {
     public Multimap<Integer, Integer> getRequestMap() {
         return requestMap;
     }
-
 
 }
