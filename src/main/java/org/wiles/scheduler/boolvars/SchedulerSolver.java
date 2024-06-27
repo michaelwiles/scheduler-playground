@@ -48,6 +48,7 @@ public class SchedulerSolver {
         prohibitConsecutiveShifts();
 
         addLeave();
+        addRequests();
 
         CpSolver solver = new CpSolver();
         solver.getParameters().setLinearizationLevel(0);
@@ -58,6 +59,48 @@ public class SchedulerSolver {
         return solver.solve(table.getModel(), onSolutionCallback);
 
 
+    }
+
+    /**
+     * adds the requests to the model
+     */
+    private void addRequests() {
+
+        LinearExprBuilder obj = LinearExpr.newBuilder();
+        for (int i : table.allInterns) {
+            for (int d : table.allDays) {
+                for (int s : table.allShifts) {
+                    Literal shift = table.table[i][d][s];
+                    if (shift != null) {
+                        if (table.getRequestMap().get(i).contains(d)) {
+                            System.out.printf("\nadded request to be OFF for %s on days %s", i, shift);
+                            obj.addTerm(shift.not(), 1);
+                        } else {
+                            System.out.printf("\nadded request to be ON for %s on days %s", i, shift);
+                            obj.addTerm(shift, 0);
+                        }
+                    }
+                }
+            }
+        }
+        System.out.println(obj);
+        table.getModel().maximize(obj);
+    }
+
+    private void addRequests0() {
+        Multimap<Integer, Integer> leaveMap = table.getRequestMap();
+        LinearExprBuilder builder = LinearExpr.newBuilder();
+
+        leaveMap.asMap().forEach((internIdx, days) -> {
+            days.stream().map(day -> table.getInterns(internIdx, day)).
+                    forEach(shifts -> {
+                        shifts.forEach(shift -> {
+                            builder.addTerm(shift.not(), 1);
+                        });
+                        System.out.printf("\nadded request to be off for %s on days %s", table.getInterns().get(internIdx), shifts);
+                    });
+        });
+        table.getModel().maximize(builder);
     }
 
     private void addLeave() {

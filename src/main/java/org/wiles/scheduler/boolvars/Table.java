@@ -25,6 +25,7 @@ public class Table {
     private final int[] dayRange;
 
 
+    public final Literal[][][] table;
     private final Multimap<Integer, Literal> dayMap = ArrayListMultimap.create();
     private final Multimap<Integer, Literal> internsMap = ArrayListMultimap.create();
     private final Multimap<Pair<Integer, Shift>, Literal> dayShiftMap = ArrayListMultimap.create();
@@ -33,6 +34,12 @@ public class Table {
     private final int days;
     private final int numberOfShifts;
     private final Multimap<Integer, Integer> leaveMap = ArrayListMultimap.create();
+    private final Multimap<Integer, Integer> requestMap = ArrayListMultimap.create();
+
+    public final int[] allInterns;// = IntStream.range(0, numNurses).toArray();
+    public final int[] allDays;// = IntStream.range(0, numDays).toArray();
+    public final int[] allShifts;// = IntStream.range(0, numShifts).toArray();
+
 
     public int getNumberOfShifts() {
         return this.numberOfShifts;
@@ -53,8 +60,12 @@ public class Table {
 //
 //
 //        shifts[n][d][s] = model.newIntVar(0L, 1L, "shifts_n" + n + "d" + d + "s" + s);
+        allInterns = IntStream.range(0, interns.size()).toArray();
+        allDays = IntStream.range(0, days).toArray();
+        allShifts = IntStream.range(0, Shift.values().length).toArray();
 
         int shifts = 0;
+        table = new Literal[interns.size()][days][Shift.values().length];
         for (int d : dayRange) {
             Shift[] shiftTypes;
             if (isWeekEndOrPublicHoliday.negate().test(d)) {
@@ -62,14 +73,17 @@ public class Table {
             } else {
                 shiftTypes = new Shift[]{Shift.WEEKEND, Shift.WEEKEND_SHORTCALL};
             }
+
+
             for (Shift s : shiftTypes) {
                 shifts++;
                 for (int i : internsRange) {
-                    BoolVar intVar = model.newBoolVar("day=" + d + " " + this.interns.get(i) + " shift=" + s);
-                    dayMap.put(d, intVar);
-                    dayShiftMap.put(Pair.of(d, s), intVar);
-                    internsMap.put(i, intVar);
-                    internDayMap.put(Pair.of(i, d), intVar);
+                    BoolVar var = model.newBoolVar("day=" + d + " " + this.interns.get(i) + " shift=" + s);
+                    dayMap.put(d, var);
+                    dayShiftMap.put(Pair.of(d, s), var);
+                    internsMap.put(i, var);
+                    internDayMap.put(Pair.of(i, d), var);
+                    table[i][d][s.ordinal()] = var;
                 }
             }
         }
@@ -123,8 +137,16 @@ public class Table {
         leaveMap.putAll(internIdx, Ints.asList(dayIndices));
     }
 
+    public void addRequests(int internIdx, int... leaveRequests) {
+        this.requestMap.putAll(internIdx, Ints.asList(leaveRequests));
+    }
+
     public Multimap<Integer, Integer> getLeaveMap() {
         return leaveMap;
+    }
+
+    public Multimap<Integer, Integer> getRequestMap() {
+        return requestMap;
     }
 
 

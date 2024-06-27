@@ -11,7 +11,7 @@ import org.wiles.scheduler.intvars.TableIntVars;
 
 import java.util.Arrays;
 import java.util.Calendar;
-import java.util.function.IntPredicate;
+import java.util.function.*;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -62,12 +62,24 @@ public class InternsTest {
     };
 
     @Test
-    public void scheduleWithLeave() {
+    public void scheduleWithRequests() {
+        var table = new Table(Stream.generate(() ->
+                faker.name().lastName()
+        ).limit(4).collect(Collectors.toList()), 7, isWeekEndOfPublicHoliday);
+        int[] ints = {0, 1, 2};
+        table.addRequests(0, ints);
+        SchedulerSolver schedulerSolver = new SchedulerSolver(table);
 
+        checkSolution(table, schedulerSolver, getValue -> {
+            Arrays.stream(ints).forEach(day -> {
+                Stream<Long> actual = table.getInterns(0, day).stream().map(getValue);
+                assertThat(actual).allMatch(x -> x == 0);
+            });
+        });
     }
 
     @Test
-    public void internalSchedule() {
+    public void scheduleWithLeave() {
         var table = new Table(Stream.generate(() ->
                 faker.name().lastName()
         ).limit(7).collect(Collectors.toList()), 31, isWeekEndOfPublicHoliday);
@@ -76,20 +88,27 @@ public class InternsTest {
 
         table.addLeaveDays(0, 8, 9, 10, 11, 12, 13, 14);
 
-        SchedulerSolver schedulerSolverIntVars = new SchedulerSolver(table);
+        SchedulerSolver schedulerSolver = new SchedulerSolver(table);
 
 
+        checkSolution(table, schedulerSolver, (getValue) -> {
+            Arrays.stream(new int[]{0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14}).forEach(day -> {
+                Stream<Long> actual = table.getInterns(0, day).stream().map(getValue);
+                assertThat(actual).allMatch(x -> x == 0);
+            });
+        });
+
+
+    }
+
+    private static void checkSolution(Table table, SchedulerSolver schedulerSolverIntVars, Consumer<Function<LinearArgument, Long>> validate) {
         CpSolverSolutionCallback onSolutionCallback = new CpSolverSolutionCallback() {
             @Override
             public void onSolutionCallback() {
 //                System.out.println(solver.getSolutionInfo());
                 System.out.println("on solution callback");
                 Arrays.stream(table.getDayRange()).mapToObj(table::getDay).forEach(this::showDayOn);
-
-                Arrays.stream(new int[]{0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14}).forEach(day -> {
-                    Stream<Long> actual = table.getInterns(0, day).stream().map(this::value);
-                    assertThat(actual).allMatch(x -> x == 0);
-                });
+                validate.accept(this::value);
             }
 
             private void showDayOn(Literal[] day) {
@@ -98,7 +117,5 @@ public class InternsTest {
         };
         CpSolverStatus status = schedulerSolverIntVars.solve(onSolutionCallback);
         assertTrue(status == CpSolverStatus.FEASIBLE || status == CpSolverStatus.OPTIMAL, "No solution");
-
-
     }
 }
