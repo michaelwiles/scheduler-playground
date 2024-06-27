@@ -5,7 +5,7 @@ import static org.assertj.core.api.Assertions.*;
 import com.google.ortools.Loader;
 import net.datafaker.Faker;
 import org.junit.jupiter.api.Test;
-import org.wiles.scheduler.boolvars.TableBoolVars;
+import org.wiles.scheduler.boolvars.Table;
 
 import java.util.Calendar;
 import java.util.function.Function;
@@ -32,7 +32,7 @@ public class TableTest {
             return i < 2 || i > 6;
         };
 
-        Function<Integer, TableBoolVars> generator = days -> new TableBoolVars(Stream.generate(() ->
+        Function<Integer, Table> generator = days -> new Table(Stream.generate(() ->
                 faker.name().lastName()
         ).limit(1).collect(Collectors.toList()), days, isWeekEndOfPublicHoliday);
 
@@ -54,7 +54,7 @@ public class TableTest {
             return i < 2 || i > 6;
         };
 
-        Function<Integer, TableBoolVars> generator = days -> new TableBoolVars(Stream.generate(() ->
+        Function<Integer, Table> generator = days -> new Table(Stream.generate(() ->
                 faker.name().lastName()
         ).limit(1).collect(Collectors.toList()), days, isWeekEndOfPublicHoliday);
 
@@ -75,7 +75,7 @@ public class TableTest {
             return i < 2 || i > 6;
         };
 
-        Function<Integer, TableBoolVars> generator = days -> new TableBoolVars(Stream.generate(() ->
+        Function<Integer, Table> generator = days -> new Table(Stream.generate(() ->
                 faker.name().lastName()
         ).limit(1).collect(Collectors.toList()), days, isWeekEndOfPublicHoliday);
 
@@ -97,7 +97,7 @@ public class TableTest {
             return i < 2 || i > 6;
         };
 
-        Function<Integer, TableBoolVars> generator = days -> new TableBoolVars(Stream.generate(() ->
+        Function<Integer, Table> generator = days -> new Table(Stream.generate(() ->
                 faker.name().lastName()
         ).limit(1).collect(Collectors.toList()), days, isWeekEndOfPublicHoliday);
 

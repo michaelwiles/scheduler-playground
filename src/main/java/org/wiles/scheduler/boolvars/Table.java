@@ -2,6 +2,7 @@ package org.wiles.scheduler.boolvars;
 
 import com.google.common.collect.ArrayListMultimap;
 import com.google.common.collect.Multimap;
+import com.google.common.primitives.Ints;
 import com.google.ortools.sat.BoolVar;
 import com.google.ortools.sat.CpModel;
 import com.google.ortools.sat.Literal;
@@ -14,7 +15,7 @@ import java.util.function.IntPredicate;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
-public class TableBoolVars {
+public class Table {
 
     private final CpModel model = new CpModel();
     private final List<String> interns;
@@ -31,10 +32,7 @@ public class TableBoolVars {
     private final Multimap<Pair<Integer, Integer>, Literal> internDayMap = ArrayListMultimap.create();
     private final int days;
     private final int numberOfShifts;
-
-    public int getDays() {
-        return this.days;
-    }
+    private final Multimap<Integer, Integer> leaveMap = ArrayListMultimap.create();
 
     public int getNumberOfShifts() {
         return this.numberOfShifts;
@@ -46,7 +44,7 @@ public class TableBoolVars {
     }
 
 
-    public TableBoolVars(List<String> interns, int days, IntPredicate isWeekEndOrPublicHoliday) {
+    public Table(List<String> interns, int days, IntPredicate isWeekEndOrPublicHoliday) {
         this.interns = interns;
         this.isWeekEndOrPublicHoliday = isWeekEndOrPublicHoliday;
         int[] internsRange = IntStream.range(0, this.interns.size()).toArray();
@@ -72,7 +70,6 @@ public class TableBoolVars {
                     dayShiftMap.put(Pair.of(d, s), intVar);
                     internsMap.put(i, intVar);
                     internDayMap.put(Pair.of(i, d), intVar);
-
                 }
             }
         }
@@ -108,10 +105,6 @@ public class TableBoolVars {
         return internDayMap.get(Pair.of(internIndex, day));
     }
 
-    public Multimap<Pair<Integer, Integer>, Literal> getInternDayMap() {
-        return internDayMap;
-    }
-
     public Literal[] getDay(int i, Shift... shift) {
         Stream<Literal> literalStream = Arrays.stream(shift).flatMap(s -> this.dayShiftMap.get(Pair.of(i, s)).stream());
         return literalStream.toArray(Literal[]::new);
@@ -126,10 +119,13 @@ public class TableBoolVars {
         return model;
     }
 
-    public Multimap<Integer, Literal> getDayMap() {
-        return dayMap;
+    public void addLeaveDays(int internIdx, int... dayIndices) {
+        leaveMap.putAll(internIdx, Ints.asList(dayIndices));
     }
 
+    public Multimap<Integer, Integer> getLeaveMap() {
+        return leaveMap;
+    }
 
 
 }

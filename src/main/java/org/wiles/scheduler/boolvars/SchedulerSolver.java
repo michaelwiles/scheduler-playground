@@ -1,23 +1,25 @@
 package org.wiles.scheduler.boolvars;
 
+import com.google.common.collect.Multimap;
 import com.google.ortools.Loader;
 import com.google.ortools.sat.*;
 
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
-import java.util.stream.IntStream;
 
-public class SchedulerSolverBoolVars {
+import static java.util.stream.IntStream.range;
+
+public class SchedulerSolver {
 
     static {
         Loader.loadNativeLibraries();
     }
 
-    private final TableBoolVars table;
+    private final Table table;
 
 
-    public SchedulerSolverBoolVars(TableBoolVars table) {
+    public SchedulerSolver(Table table) {
         this.table = table;
     }
 
@@ -27,25 +29,25 @@ public class SchedulerSolverBoolVars {
         //
 
         // at most one shift per day per intern
-        table.getWeekDays().mapToObj(x -> table.getDay(x, TableBoolVars.Shift.WEEK_DAY)).forEach(set -> table.getModel().addExactlyOne(set));
-        table.getWeekEndDays().mapToObj(x -> table.getDay(x, TableBoolVars.Shift.WEEKEND)).forEach(set -> table.getModel().addExactlyOne(set));
-        table.getWeekEndDays().mapToObj(x -> table.getDay(x, TableBoolVars.Shift.WEEKEND_SHORTCALL)).forEach(set -> table.getModel().addExactlyOne(set));
+        table.getWeekDays().mapToObj(x -> table.getDay(x, Table.Shift.WEEK_DAY)).forEach(set -> table.getModel().addExactlyOne(set));
+        table.getWeekEndDays().mapToObj(x -> table.getDay(x, Table.Shift.WEEKEND)).forEach(set -> table.getModel().addExactlyOne(set));
+        table.getWeekEndDays().mapToObj(x -> table.getDay(x, Table.Shift.WEEKEND_SHORTCALL)).forEach(set -> table.getModel().addExactlyOne(set));
 
 
         // make sure that onle one intern is on call for one day (and not on call twice on the same day)
-        IntStream.range(0, table.getInterns().size()).forEach(internIndex -> {
+        //noinspection ALL
+        range(0, table.getInterns().size()).forEach(internIndex -> {
             Arrays.stream(table.getDayRange()).mapToObj(weekendDay ->
                     table.getInterns(internIndex, weekendDay)
             ).forEach(elements -> table.getModel().addAtMostOne(elements));
         });
-
-
-
 //        addGaps(table);
         distributeShifts(table);
 //        table.getModel().addImplication()
 
         prohibitConsecutiveShifts();
+
+        addLeave();
 
         CpSolver solver = new CpSolver();
         solver.getParameters().setLinearizationLevel(0);
@@ -58,9 +60,22 @@ public class SchedulerSolverBoolVars {
 
     }
 
+    private void addLeave() {
+        Multimap<Integer, Integer> leaveMap = table.getLeaveMap();
+        leaveMap.asMap().forEach((internIdx, days) -> {
+            days.stream().map(day -> table.getInterns(internIdx, day)).
+                    forEach(shifts -> {
+                        LinearExprBuilder builder = LinearExpr.newBuilder();
+                        builder.addSum(shifts.toArray(new Literal[0]));
+                        System.out.printf("\nadded leave for %s on days %s", table.getInterns().get(internIdx), shifts);
+                        table.getModel().addEquality(builder, 0);
+                    });
+        });
+    }
+
     private void prohibitConsecutiveShifts() {
-        IntStream.range(0, table.getDayRange().length - 1).forEach(day -> {
-            IntStream.range(0, table.getInterns().size()).forEach(internIndex -> {
+        range(0, table.getDayRange().length - 1).forEach(day -> {
+            range(0, table.getInterns().size()).forEach(internIndex -> {
                 Collection<Literal> interns = table.getInterns(internIndex, day);
 
                 interns.forEach(todayShift -> {
@@ -80,7 +95,7 @@ public class SchedulerSolverBoolVars {
     }
 
 
-    private void distributeShifts(TableBoolVars table) {
+    private void distributeShifts(Table table) {
         // Try to distribute the shifts evenly, so that each nurse works
         // minShiftsPerNurse shifts. If this is not possible, because the total
         // number of shifts is not divisible by the number of nurses, some nurses will
@@ -96,7 +111,7 @@ public class SchedulerSolverBoolVars {
         System.out.printf("max = %s", maxShiftsPerNurse);
 
 
-        List<LinearExprBuilder> list = IntStream.range(0, table.getInterns().size()).mapToObj(internIndex -> {
+        List<LinearExprBuilder> list = range(0, table.getInterns().size()).mapToObj(internIndex -> {
             LinearExprBuilder builder = LinearExpr.newBuilder();
             table.getInterns(internIndex).forEach(builder::add);
             return builder;
