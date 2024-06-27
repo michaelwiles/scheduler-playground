@@ -116,7 +116,7 @@ public class SchedulerSolver {
                 table.getModel().addEquality(off, inversionExpression);
                 if (table.getRequestMap().containsEntry(i, d)) {
                     System.out.printf("\nadding off request for iId: %s:%s and day: %d", i, table.getInterns().get(i), d);
-                    obj.add(off);
+                    obj.add(inversionExpression);
                 }
             }
         }

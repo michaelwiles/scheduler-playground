@@ -67,7 +67,7 @@ public class InternsTest {
     public void scheduleWithRequests() {
         var table = new Table(Stream.generate(() ->
                 faker.name().lastName()
-        ).limit(4).collect(Collectors.toList()), 7, isWeekEndOfPublicHoliday);
+        ).limit(4).collect(Collectors.toList()), 8, isWeekEndOfPublicHoliday);
         int[] ints = {0, 1, 2, 3, 4};
         table.addRequests(0, ints);
         SchedulerSolver schedulerSolver = new SchedulerSolver(table);
