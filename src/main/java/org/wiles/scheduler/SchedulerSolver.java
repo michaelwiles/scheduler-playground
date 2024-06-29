@@ -3,10 +3,14 @@ package org.wiles.scheduler;
 import com.google.common.collect.Multimap;
 import com.google.ortools.Loader;
 import com.google.ortools.sat.*;
+import org.wiles.scheduler.Table.Shift;
 
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
+import java.util.function.Consumer;
+import java.util.stream.LongStream;
+import java.util.stream.Stream;
 
 import static java.util.stream.IntStream.range;
 
@@ -31,9 +35,9 @@ public class SchedulerSolver {
         //
 
         // at most one shift per day per intern
-        table.getWeekDays().mapToObj(x -> table.getDay(x, Table.Shift.WEEK_DAY)).forEach(set -> table.getModel().addExactlyOne(set));
-        table.getWeekEndDays().mapToObj(x -> table.getDay(x, Table.Shift.WEEKEND)).forEach(set -> table.getModel().addExactlyOne(set));
-        table.getWeekEndDays().mapToObj(x -> table.getDay(x, Table.Shift.WEEKEND_SHORTCALL)).forEach(set -> table.getModel().addExactlyOne(set));
+        table.getWeekDays().mapToObj(x -> table.getDay(x, Shift.WEEK_DAY)).forEach(set -> table.getModel().addExactlyOne(set));
+        table.getWeekEndDays().mapToObj(x -> table.getDay(x, Shift.WEEKEND)).forEach(set -> table.getModel().addExactlyOne(set));
+        table.getWeekEndDays().mapToObj(x -> table.getDay(x, Shift.WEEKEND_SHORTCALL)).forEach(set -> table.getModel().addExactlyOne(set));
 
 
         // make sure that onle one intern is on call for one day (and not on call twice on the same day)
@@ -51,11 +55,43 @@ public class SchedulerSolver {
 
         addLeave();
 
+        addShiftEqualisation();
+
         CpSolver solver = new CpSolver();
         addRequests();
         solver.getParameters().setLinearizationLevel(0);
 
         return solver;
+    }
+
+    private void addShiftEqualisation() {
+        int sum = Stream.of(Shift.values()).mapToInt(shift -> {
+            List<Literal> literals = table.get(0, null, shift);
+            System.out.println("shifts of type " + shift + " = " + literals.size());
+            return literals.size() * shift.hours;
+        }).sum();
+
+        int hoursPerIntern = sum / table.getInterns().size();
+        System.out.println("hours per intern: " + hoursPerIntern);
+        CpModel model = table.getModel();
+
+        Arrays.stream(table.allInterns).forEach(i -> {
+            LinearExprBuilder builder = LinearExpr.newBuilder();
+
+            Consumer<Shift> integerLinearExprBuilderShiftTriConsumer = (shift0) -> {
+                Literal[] literals = table.getArray(i, null, shift0);
+                builder.addWeightedSum(literals, LongStream.generate(() -> shift0.hours).limit(literals.length).toArray());
+            };
+            integerLinearExprBuilderShiftTriConsumer.accept(Shift.WEEK_DAY);
+            integerLinearExprBuilderShiftTriConsumer.accept(Shift.WEEKEND);
+            integerLinearExprBuilderShiftTriConsumer.accept(Shift.WEEKEND_SHORTCALL);
+
+            IntVar intVar = model.newIntVar(0, Integer.MAX_VALUE, String.format("%s:%s hours", i, table.getInterns().get(i)));
+            builder.add(-hoursPerIntern);
+            model.addEquality(intVar, builder);
+            table.addHoursTracking(intVar);
+//            model.minimize(builder);
+        });
     }
 
     /**

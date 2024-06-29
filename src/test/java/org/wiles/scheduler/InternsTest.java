@@ -102,6 +102,20 @@ public class InternsTest {
     }
 
     @Test
+    public void CheckEqualisation() {
+        var table = new Table(Stream.generate(() ->
+                faker.name().lastName()
+        ).limit(6).collect(Collectors.toList()), 31, isWeekEndOfPublicHoliday);
+
+        SchedulerSolver schedulerSolver = new SchedulerSolver(table);
+
+
+        checkSolution(table, schedulerSolver, (getValue) ->
+                table.getHoursTrackng().forEach(x ->
+                        System.out.println(x.getName() + " : " + getValue.apply(x))));
+    }
+
+    @Test
     public void scheduleWithLeave() {
         var table = new Table(Stream.generate(() ->
                 faker.name().lastName()
@@ -127,7 +141,7 @@ public class InternsTest {
         CpSolver solver = schedulerSolverIntVars.solve();
         CpSolverStatus status = solver.solve(table.getModel());
         System.out.println(status);
-        assertSame(status, CpSolverStatus.OPTIMAL, "No solution");
+        assertSame(CpSolverStatus.OPTIMAL, status, "No solution");
 
         Arrays.stream(table.getDayRange()).mapToObj(table::getDay).forEach(day -> Arrays.stream(day).filter(a -> solver.value(a) == 1).map(BoolVar.class::cast).forEach(x -> System.out.println(x.getName())));
 

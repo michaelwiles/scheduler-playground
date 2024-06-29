@@ -3,10 +3,7 @@ package org.wiles.scheduler;
 import com.google.common.collect.ArrayListMultimap;
 import com.google.common.collect.Multimap;
 import com.google.common.primitives.Ints;
-import com.google.ortools.sat.BoolVar;
-import com.google.ortools.sat.CpModel;
-import com.google.ortools.sat.IntVar;
-import com.google.ortools.sat.Literal;
+import com.google.ortools.sat.*;
 import org.apache.commons.lang3.tuple.Pair;
 
 import java.util.*;
@@ -22,7 +19,33 @@ public class Table {
 
 
     private final int[] dayRange;
+    private final List<IntVar> hoursTrackng = new ArrayList<>();
 
+
+    public static class Key {
+        Integer intern;
+        Integer day;
+        Shift shift;
+
+        public Key(Integer intern, Integer day, Shift shift) {
+            this.intern = intern;
+            this.day = day;
+            this.shift = shift;
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
+            Key key = (Key) o;
+            return Objects.equals(intern, key.intern) && Objects.equals(day, key.day) && Objects.equals(shift, key.shift);
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(intern, day, shift);
+        }
+    }
 
     final Literal[][][] shifts;
     private final Multimap<Integer, Literal> dayMap = ArrayListMultimap.create();
@@ -40,6 +63,8 @@ public class Table {
     final int[] allShifts;// = IntStream.range(0, numShifts).toArray();
     public IntVar maxRequests;
 
+    private final Map<Key, Literal> core = new HashMap<>();
+
 
     public int getNumberOfShifts() {
         return this.numberOfShifts;
@@ -47,9 +72,17 @@ public class Table {
 
 
     public enum Shift {
-        WEEK_DAY, WEEKEND, WEEKEND_SHORTCALL
-    }
 
+        WEEK_DAY(16),
+        WEEKEND(24),
+        WEEKEND_SHORTCALL(6);
+
+        final int hours;
+
+        Shift(int hours) {
+            this.hours = hours;
+        }
+    }
 
     public Table(List<String> interns, int days, IntPredicate isWeekEndOrPublicHoliday) {
         this.interns = interns;
@@ -86,6 +119,7 @@ public class Table {
                     internsMap.put(i, var);
                     internDayMap.put(Pair.of(i, d), var);
                     this.shifts[i][d][s.ordinal()] = var;
+                    core.put(new Key(i, d, s), var);
                 }
             }
         }
@@ -151,4 +185,31 @@ public class Table {
         return requestMap;
     }
 
+    public List<Literal> get(Integer intern, Integer day, Shift shift) {
+        List<Integer> interns = intern != null ? List.of(intern) : Ints.asList(allInterns);
+        List<Integer> days = day != null ? List.of(day) : Ints.asList(allDays);
+        List<Shift> shifts = shift != null ? List.of(shift) : Arrays.asList(Shift.values());
+
+        List<Literal> literals = new ArrayList<>();
+        for (Integer i : interns) {
+            for (Integer d : days) {
+                for (Shift s : shifts) {
+                    Optional.ofNullable(core.get(new Key(i, d, s))).ifPresent(literals::add);
+                }
+            }
+        }
+        return literals;
+    }
+
+    public Literal[] getArray(Integer intern, Integer day, Shift shift) {
+        return get(intern, day, shift).toArray(new Literal[]{});
+    }
+
+    public void addHoursTracking(IntVar intVar) {
+        this.hoursTrackng.add(intVar);
+    }
+
+    public List<IntVar> getHoursTrackng() {
+        return hoursTrackng;
+    }
 }
